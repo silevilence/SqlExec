@@ -1,39 +1,56 @@
+# 版本号
+version = 2
+
+# 常规设置
 [general]
-theme = "light"
-language = "zh_CN"
-compact_mode = false
+theme = "light"  # light 或 dark
+language = "zh_CN"  # zh_CN 或 en_US
 show_system_tray = true
 enable_notifications = true
+close_action = "ask"  # ask: 每次询问, minimize: 缩小到托盘, exit: 退出程序
 
+# 数据库连接
+[[connections]]
+name = "Example Connection"
+alias = "example"
+type = "sqlite"
+connection_string = "sqlite:///example.db"
+
+# 分组信息
+[groups.ungrouped]
+description = "Ungrouped connections"
+connections = ["example"]
+
+# 组设置
+[groups."开发环境"]
+description = "开发环境数据库"
+connections = ["local_mysql", "local_pg"]
+
+[groups."测试环境"]
+description = "测试环境数据库"
+connections = []
+
+[groups."生产环境"]
+description = "生产环境数据库"
+connections = []
+
+# 日志设置
 [logging]
 level = "INFO"
 file_path = "logs/sqlexec.log"
 max_size = 10  # MB
 backup_count = 5
 
+# 数据库设置
 [database]
 timeout = 30
 max_rows = 1000
 
-[[connections]]
-name = "Example SQL Server"
-alias = "DEV-MSSQL"
-type = "mssql"
-connection_string = "mssql+pymssql://username:password@localhost:1433/database"
-group = ["development"]
-
-[[connections]]
-name = "Example MySQL"
-alias = "DEV-MYSQL"
-type = "mysql"
-connection_string = "mysql://username:password@localhost:3306/database"
-group = ["development"]
-
-[groups]
-development = { description = "Development Databases" }
-production = { description = "Production Databases" }
-
+# UI设置
 [ui]
+theme_colors = { primary = "#4a90e2", secondary = "#f5f5f5" }
+font_family = "Microsoft YaHei"
+font_size = 12
 query_font_size = 12
 result_font_size = 12
 show_line_numbers = true

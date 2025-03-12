@@ -45,29 +45,47 @@ class Sidebar(QWidget):
         """刷新连接列表"""
         self.tree.clear()
         
-        # 获取所有连接
-        connections = self.main_window.db_manager.get_all_connections()
+        # 获取配置管理器
+        config_manager = self.main_window.config_manager
+        settings = config_manager.settings
         
-        # 按组组织连接
-        groups = {}
-        for alias, conn in connections.items():
-            for group_name in conn.get("group", ["未分组"]):
-                if group_name not in groups:
-                    groups[group_name] = []
-                groups[group_name].append((alias, conn))
-        
-        # 创建树形结构
-        for group_name, conns in groups.items():
+        # 创建所有组的树节点
+        group_items = {}
+        for group_name, group_info in settings.groups.items():
             group_item = QTreeWidgetItem(self.tree)
-            group_item.setText(0, group_name)
+            group_item.setText(0, f"{group_name} ({group_info.description})")
             group_item.setFlags(group_item.flags() | Qt.ItemIsAutoTristate | Qt.ItemIsUserCheckable)
+            group_items[group_name] = group_item
+        
+        # 确保"未分组"存在
+        if "未分组" not in group_items:
+            group_item = QTreeWidgetItem(self.tree)
+            group_item.setText(0, "未分组")
+            group_item.setFlags(group_item.flags() | Qt.ItemIsAutoTristate | Qt.ItemIsUserCheckable)
+            group_items["未分组"] = group_item
+        
+        # 添加连接到对应的组
+        for alias, conn in settings.connections.items():
+            # 获取连接所属的组
+            conn_groups = settings.get_connection_groups(alias)
             
-            for alias, conn in conns:
-                conn_item = QTreeWidgetItem(group_item)
-                conn_item.setText(0, f"{conn['name']} ({alias})")
+            # 如果连接不属于任何组，添加到未分组
+            if not conn_groups:
+                conn_groups = ["未分组"]
+            
+            # 为每个组添加连接
+            for group_name in conn_groups:
+                conn_item = QTreeWidgetItem(group_items[group_name])
+                conn_item.setText(0, f"{conn.name} ({alias})")
                 conn_item.setData(0, Qt.UserRole, alias)
                 conn_item.setFlags(conn_item.flags() | Qt.ItemIsUserCheckable)
                 conn_item.setCheckState(0, Qt.Unchecked)
+        
+        # 删除空的未分组
+        ungrouped = group_items["未分组"]
+        if ungrouped.childCount() == 0:
+            index = self.tree.indexOfTopLevelItem(ungrouped)
+            self.tree.takeTopLevelItem(index)
         
         self.tree.expandAll()
 

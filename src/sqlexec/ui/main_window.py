@@ -1,7 +1,7 @@
 import sys
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QSplitter, QSystemTrayIcon, QMenu, QMenuBar
+    QSplitter, QSystemTrayIcon, QMenu, QMenuBar, QMessageBox
 )
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon, QAction, QPixmap, QColor
@@ -11,17 +11,22 @@ from sqlexec.ui.sidebar import Sidebar
 from sqlexec.ui.query_editor import QueryEditor
 from sqlexec.ui.settings_dialog import SettingsDialog
 from sqlexec.core.db_manager import DatabaseManager
+from sqlexec.config.config_manager import ConfigManager
+from sqlexec.config.settings import Settings
+from sqlexec.config.enums import Theme, CloseAction
 
 class MainWindow(QMainWindow):
-    def __init__(self, config: dict):
+    def __init__(self):
         super().__init__()
-        self.config = config
+        self.config_manager = ConfigManager()
+        self.settings = self.config_manager.settings
         self.db_manager = DatabaseManager()
         
         self._init_ui()
         self._setup_menu()
         self._setup_tray()
         self._load_connections()
+        self._apply_settings()
 
     def _init_ui(self):
         """初始化UI"""
@@ -78,7 +83,7 @@ class MainWindow(QMainWindow):
 
     def _setup_tray(self):
         """设置系统托盘"""
-        if not self.config.get("general", {}).get("show_system_tray", True):
+        if not self.settings.general.show_system_tray:
             return
 
         self.tray_icon = QSystemTrayIcon(self)
@@ -115,17 +120,50 @@ class MainWindow(QMainWindow):
 
     def _load_connections(self):
         """加载数据库连接"""
-        connections = self.config.get("connections", [])
-        for conn in connections:
-            self.db_manager.add_connection(conn["alias"], conn)
+        for conn in self.settings.connections.values():
+            self.db_manager.add_connection(conn.alias, {
+                "name": conn.name,
+                "alias": conn.alias,
+                "type": conn.type,
+                "connection_string": conn.connection_string,
+                "groups": self.settings.get_connection_groups(conn.alias)
+            })
         self.sidebar.refresh_connections()
+
+    def _apply_settings(self):
+        """应用设置到界面"""
+        # 应用主题
+        if self.settings.general.theme == Theme.DARK:
+            # TODO: 应用深色主题
+            pass
+        else:
+            # TODO: 应用浅色主题
+            pass
+            
+        # 应用系统托盘设置
+        if hasattr(self, "tray_icon"):
+            if self.settings.general.show_system_tray:
+                self.tray_icon.show()
+            else:
+                self.tray_icon.hide()
 
     def _show_settings(self):
         """显示设置对话框"""
-        dialog = SettingsDialog(self.config, self)
+        dialog = SettingsDialog(self.settings, self)
         if dialog.exec():
-            # TODO: 保存设置
-            pass
+            # 保存设置到文件
+            if self.config_manager.save_config(self.settings):
+                # 应用新设置
+                self._apply_settings()
+                # 重新加载连接
+                self._load_connections()
+            else:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(
+                    self,
+                    "保存设置失败",
+                    "无法保存设置到配置文件，请检查文件权限或磁盘空间。"
+                )
 
     def _toggle_sidebar(self):
         """切换侧边栏显示状态"""
@@ -136,14 +174,44 @@ class MainWindow(QMainWindow):
 
     def _quit_application(self):
         """退出应用程序"""
-        self.db_manager.dispose_all()
+        self.db_manager.clear_all_connections()
         self.tray_icon.hide()
         sys.exit(0)
 
     def closeEvent(self, event):
         """重写关闭事件"""
-        if self.config.get("general", {}).get("show_system_tray", True):
+        if not self.settings.general.show_system_tray:
+            # 如果没有启用系统托盘，直接退出
+            self._quit_application()
+            return
+            
+        close_action = self.settings.general.close_action
+        
+        if close_action == CloseAction.ASK:
+            # 弹出询问对话框
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("关闭确认")
+            msg_box.setText("要退出程序还是最小化到系统托盘？")
+            # 自定义按钮
+            exit_btn = msg_box.addButton("退出程序", QMessageBox.YesRole)
+            minimize_btn = msg_box.addButton("最小化到托盘", QMessageBox.NoRole)
+            cancel_btn = msg_box.addButton("取消", QMessageBox.RejectRole)
+            msg_box.setDefaultButton(cancel_btn)
+            
+            msg_box.exec()
+            clicked_button = msg_box.clickedButton()
+            
+            if clicked_button == exit_btn:  # 退出程序
+                self._quit_application()
+            elif clicked_button == minimize_btn:  # 最小化到托盘
+                event.ignore()
+                self.hide()
+            else:  # 取消关闭
+                event.ignore()
+        elif close_action == CloseAction.MINIMIZE:
+            # 最小化到托盘
             event.ignore()
             self.hide()
-        else:
+        else:  # CloseAction.EXIT
+            # 退出程序
             self._quit_application() 
