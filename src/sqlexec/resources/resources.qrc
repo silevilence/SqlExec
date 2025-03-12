@@ -1,0 +1,11 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="icons">
+        <file>icons/app.png</file>
+        <file>icons/database.png</file>
+        <file>icons/group.png</file>
+        <file>icons/execute.png</file>
+        <file>icons/settings.png</file>
+        <file>icons/exit.png</file>
+    </qresource>
+</RCC> 

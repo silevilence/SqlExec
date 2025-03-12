@@ -1,0 +1,41 @@
+[general]
+theme = "light"
+language = "zh_CN"
+compact_mode = false
+show_system_tray = true
+enable_notifications = true
+
+[logging]
+level = "INFO"
+file_path = "logs/sqlexec.log"
+max_size = 10  # MB
+backup_count = 5
+
+[database]
+timeout = 30
+max_rows = 1000
+
+[[connections]]
+name = "Example SQL Server"
+alias = "DEV-MSSQL"
+type = "mssql"
+connection_string = "mssql+pymssql://username:password@localhost:1433/database"
+group = ["development"]
+
+[[connections]]
+name = "Example MySQL"
+alias = "DEV-MYSQL"
+type = "mysql"
+connection_string = "mysql://username:password@localhost:3306/database"
+group = ["development"]
+
+[groups]
+development = { description = "Development Databases" }
+production = { description = "Production Databases" }
+
+[ui]
+query_font_size = 12
+result_font_size = 12
+show_line_numbers = true
+word_wrap = false
+auto_complete = true 
