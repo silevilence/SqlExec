@@ -6,12 +6,14 @@ from typing import Dict, Any, Optional
 
 from sqlexec.config.settings import Settings
 
+
 class ConfigManager:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.config_dir = Path.home() / ".sqlexec"
         self.config_file = self.config_dir / "config.toml"
-        self.default_config_file = Path(__file__).parent / "default_config.toml"
+        self.default_config_file = Path(
+            __file__).parent / "default_config.toml"
         self._settings: Optional[Settings] = None
 
     @property
@@ -26,7 +28,7 @@ class ConfigManager:
         try:
             if not self.config_file.exists():
                 self._create_default_config()
-            
+
             config_dict = toml.load(self.config_file)
             return Settings.from_dict(config_dict)
         except Exception as e:
@@ -61,4 +63,4 @@ class ConfigManager:
             return toml.load(self.default_config_file)
         except Exception as e:
             self.logger.error(f"加载默认配置失败: {e}")
-            return {} 
+            return {}

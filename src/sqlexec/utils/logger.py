@@ -2,8 +2,10 @@ import logging
 import logging.handlers
 import os
 from pathlib import Path
+from typing import NoReturn
 
-def setup_logger():
+
+def setup_logger() -> None:
     """配置日志系统"""
     # 创建日志目录
     log_dir = Path.home() / ".sqlexec" / "logs"
@@ -40,4 +42,4 @@ def setup_logger():
 
     # 设置第三方库的日志级别
     logging.getLogger('sqlalchemy').setLevel(logging.WARNING)
-    logging.getLogger('PySide6').setLevel(logging.WARNING) 
+    logging.getLogger('PySide6').setLevel(logging.WARNING)

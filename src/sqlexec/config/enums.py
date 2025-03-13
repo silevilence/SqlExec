@@ -1,12 +1,15 @@
 from enum import Enum, auto
 
+
 class Theme(Enum):
     LIGHT = "light"
     DARK = "dark"
 
+
 class Language(Enum):
     ZH_CN = "zh_CN"
     EN_US = "en_US"
+
 
 class CloseAction(Enum):
     ASK = "ask"  # 每次询问
@@ -20,4 +23,4 @@ class CloseAction(Enum):
             cls.MINIMIZE: "缩小到托盘",
             cls.EXIT: "退出程序"
         }
-        return display_names.get(value, str(value)) 
+        return display_names.get(value, str(value))

@@ -15,13 +15,14 @@ from sqlexec.config.config_manager import ConfigManager
 from sqlexec.config.settings import Settings
 from sqlexec.config.enums import Theme, CloseAction
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.config_manager = ConfigManager()
         self.settings = self.config_manager.settings
         self.db_manager = DatabaseManager()
-        
+
         self._init_ui()
         self._setup_menu()
         self._setup_tray()
@@ -36,7 +37,7 @@ class MainWindow(QMainWindow):
         # 创建中央部件
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        
+
         # 创建主布局
         main_layout = QHBoxLayout(central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -44,39 +45,39 @@ class MainWindow(QMainWindow):
 
         # 创建分割器
         splitter = QSplitter(Qt.Horizontal)
-        
+
         # 创建侧边栏
         self.sidebar = Sidebar(self)
         splitter.addWidget(self.sidebar)
-        
+
         # 创建查询编辑器
         self.query_editor = QueryEditor(self)
         splitter.addWidget(self.query_editor)
-        
+
         # 设置分割器比例
         splitter.setStretchFactor(0, 1)  # 侧边栏
         splitter.setStretchFactor(1, 4)  # 查询编辑器
-        
+
         main_layout.addWidget(splitter)
 
     def _setup_menu(self):
         """设置菜单栏"""
         menubar = self.menuBar()
-        
+
         # 文件菜单
         file_menu = menubar.addMenu("文件")
-        
+
         settings_action = QAction("设置", self)
         settings_action.triggered.connect(self._show_settings)
         file_menu.addAction(settings_action)
-        
+
         exit_action = QAction("退出", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
-        
+
         # 视图菜单
         view_menu = menubar.addMenu("视图")
-        
+
         toggle_sidebar_action = QAction("切换侧边栏", self)
         toggle_sidebar_action.triggered.connect(self._toggle_sidebar)
         view_menu.addAction(toggle_sidebar_action)
@@ -87,34 +88,35 @@ class MainWindow(QMainWindow):
             return
 
         self.tray_icon = QSystemTrayIcon(self)
-        
+
         # 使用SVG图标
-        icon_path = str(Path(__file__).parent.parent / "resources" / "icons" / "app.svg")
+        icon_path = str(Path(__file__).parent.parent /
+                        "resources" / "icons" / "app.svg")
         icon = QIcon(icon_path)
         if icon.isNull():
             # 如果SVG加载失败，创建一个简单的图标
             pixmap = QPixmap(32, 32)
             pixmap.fill(QColor("#4a90e2"))
             icon = QIcon(pixmap)
-        
+
         self.tray_icon.setIcon(icon)
         self.setWindowIcon(icon)
-        
+
         # 创建托盘菜单
         tray_menu = QMenu()
-        
+
         show_action = QAction("显示", self)
         show_action.triggered.connect(self.show)
         tray_menu.addAction(show_action)
-        
+
         hide_action = QAction("隐藏", self)
         hide_action.triggered.connect(self.hide)
         tray_menu.addAction(hide_action)
-        
+
         quit_action = QAction("退出", self)
         quit_action.triggered.connect(self._quit_application)
         tray_menu.addAction(quit_action)
-        
+
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.show()
 
@@ -139,7 +141,7 @@ class MainWindow(QMainWindow):
         else:
             # TODO: 应用浅色主题
             pass
-            
+
         # 应用系统托盘设置
         if hasattr(self, "tray_icon"):
             if self.settings.general.show_system_tray:
@@ -184,9 +186,9 @@ class MainWindow(QMainWindow):
             # 如果没有启用系统托盘，直接退出
             self._quit_application()
             return
-            
+
         close_action = self.settings.general.close_action
-        
+
         if close_action == CloseAction.ASK:
             # 弹出询问对话框
             msg_box = QMessageBox(self)
@@ -197,10 +199,10 @@ class MainWindow(QMainWindow):
             minimize_btn = msg_box.addButton("最小化到托盘", QMessageBox.NoRole)
             cancel_btn = msg_box.addButton("取消", QMessageBox.RejectRole)
             msg_box.setDefaultButton(cancel_btn)
-            
+
             msg_box.exec()
             clicked_button = msg_box.clickedButton()
-            
+
             if clicked_button == exit_btn:  # 退出程序
                 self._quit_application()
             elif clicked_button == minimize_btn:  # 最小化到托盘
@@ -214,4 +216,4 @@ class MainWindow(QMainWindow):
             self.hide()
         else:  # CloseAction.EXIT
             # 退出程序
-            self._quit_application() 
+            self._quit_application()
