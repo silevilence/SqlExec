@@ -2,6 +2,7 @@
 name = "sqlexec"
 version = "0.1.0"
 description = "A SQL execution application with multi-database support"
+requires-python = "==3.12.8"
 authors = []
 dependencies = [
     "PySide6>=6.6.0",
@@ -13,6 +14,14 @@ dependencies = [
     "python-dotenv>=1.0.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pyinstaller>=6.12.0"
+]
+
+[project.scripts]
+build-exe = "pyinstaller:run_build"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -22,3 +31,8 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sqlexec"] 
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.12.0",
+]

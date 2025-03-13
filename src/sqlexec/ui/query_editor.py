@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QThread, Signal, QRegularExpression
 from PySide6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont
+from typing import List, Dict
 
 class SQLSyntaxHighlighter(QSyntaxHighlighter):
     """SQL语法高亮器"""
@@ -133,11 +134,12 @@ class QueryExecutor(QThread):
             self.progress.emit(i, total)
             success, rows, error = self.db_manager.execute_query(alias, self.query)
             
-            if success and rows:
-                results.extend(rows)
-            elif not success:
+            if not success:
                 self.finished.emit(False, f"在 {alias} 上执行失败: {error}", [])
                 return
+            
+            # 将结果与连接别名一起保存
+            results.append((alias, rows))
         
         self.finished.emit(True, "", results)
 
@@ -155,56 +157,58 @@ class QueryEditor(QWidget):
         # 创建分割器
         splitter = QSplitter(Qt.Vertical)
         
-        # 创建查询编辑区
+        # 查询编辑区
+        query_widget = QWidget()
+        query_layout = QVBoxLayout(query_widget)
+        
         self.query_edit = QTextEdit()
         self.query_edit.setPlaceholderText("在此输入SQL查询...")
-        # 设置等宽字体
-        font = QFont("Consolas", 12)
-        self.query_edit.setFont(font)
+        self.query_edit.setFont(QFont("Consolas", 12))
         
         # 应用SQL语法高亮
         self.highlighter = SQLSyntaxHighlighter(self.query_edit.document())
         
-        # 创建工具栏
-        toolbar = QHBoxLayout()
-        
-        self.run_btn = QPushButton("运行")
-        self.run_btn.clicked.connect(self._run_query)
-        toolbar.addWidget(self.run_btn)
-        
-        self.clear_btn = QPushButton("清除")
-        self.clear_btn.clicked.connect(self._clear_query)
-        toolbar.addWidget(self.clear_btn)
-        
-        # 添加进度条
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        toolbar.addWidget(self.progress_bar)
-        
-        toolbar.addStretch()
-        
-        # 创建查询结果区
-        self.result_table = QTableWidget()
-        
-        # 创建状态栏
-        self.status_bar = QLabel()
-        self.status_bar.setStyleSheet("padding: 5px;")
-        
-        # 添加组件到布局
-        query_container = QWidget()
-        query_layout = QVBoxLayout(query_container)
-        query_layout.addLayout(toolbar)
         query_layout.addWidget(self.query_edit)
         
-        splitter.addWidget(query_container)
-        splitter.addWidget(self.result_table)
+        button_layout = QHBoxLayout()
+        self.run_btn = QPushButton("执行查询")
+        self.run_btn.clicked.connect(self._run_query)
+        self.clear_btn = QPushButton("清除")
+        self.clear_btn.clicked.connect(self._clear_query)
+        button_layout.addWidget(self.run_btn)
+        button_layout.addWidget(self.clear_btn)
+        button_layout.addStretch()
+        query_layout.addLayout(button_layout)
         
-        layout.addWidget(splitter)
-        layout.addWidget(self.status_bar)
+        splitter.addWidget(query_widget)
+        
+        # 结果显示区
+        result_widget = QWidget()
+        result_layout = QVBoxLayout(result_widget)
+        result_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # 使用标签页显示结果
+        self.result_tabs = QTabWidget()
+        self.result_tabs.setTabsClosable(True)
+        self.result_tabs.tabCloseRequested.connect(self._close_result_tab)
+        result_layout.addWidget(self.result_tabs)
+        
+        # 进度条和状态栏
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        result_layout.addWidget(self.progress_bar)
+        
+        self.status_bar = QLabel()
+        self.status_bar.setStyleSheet("padding: 5px;")
+        result_layout.addWidget(self.status_bar)
+        
+        splitter.addWidget(result_widget)
         
         # 设置分割器的初始大小比例
         splitter.setStretchFactor(0, 1)  # 查询编辑区
         splitter.setStretchFactor(1, 2)  # 结果显示区
+        
+        layout.addWidget(splitter)
 
     def _run_query(self):
         """运行查询"""
@@ -217,15 +221,13 @@ class QueryEditor(QWidget):
         if not selected_conns:
             QMessageBox.warning(self, "错误", "请先选择至少一个数据库连接")
             return
-            
-        # 清空结果表格
-        self.result_table.clear()
-        self.result_table.setRowCount(0)
-        self.result_table.setColumnCount(0)
         
         # 禁用运行按钮，显示进度条
         self.run_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
+        
+        # 清空所有结果标签页
+        self.result_tabs.clear()
         
         # 创建并启动查询执行器
         self.executor = QueryExecutor(
@@ -237,7 +239,7 @@ class QueryEditor(QWidget):
         self.executor.progress.connect(self._update_progress)
         self.executor.start()
 
-    def _handle_query_result(self, success, error, results):
+    def _handle_query_result(self, success: bool, error: str, results: List[Dict]):
         """处理查询结果"""
         # 恢复UI状态
         self.run_btn.setEnabled(True)
@@ -247,49 +249,73 @@ class QueryEditor(QWidget):
             self.status_bar.setText(error)
             self.status_bar.setStyleSheet("color: red; padding: 5px;")
             return
-            
-        if not results:
-            self.status_bar.setText("查询执行成功，但没有返回数据")
+        
+        # 显示结果
+        if results:
+            for alias, result_data in results:
+                if result_data:
+                    # 创建新的结果表格
+                    table = QTableWidget()
+                    self._display_results(table, result_data)
+                    # 添加到标签页
+                    self.result_tabs.addTab(table, alias)
+                    
+            self.status_bar.setText(f"查询成功")
             self.status_bar.setStyleSheet("color: green; padding: 5px;")
+        else:
+            self.status_bar.setText("查询执行成功")
+            self.status_bar.setStyleSheet("color: green; padding: 5px;")
+
+    def _display_results(self, table: QTableWidget, results: List[Dict]):
+        """在表格中显示结果"""
+        if not results:
             return
             
-        # 显示结果集
-        self._display_results(results)
-        self.status_bar.setText(f"查询成功，返回 {len(results)} 条记录")
-        self.status_bar.setStyleSheet("color: green; padding: 5px;")
+        # 设置列
+        columns = list(results[0].keys())
+        table.setColumnCount(len(columns))
+        table.setHorizontalHeaderLabels(columns)
+        
+        # 设置行
+        table.setRowCount(len(results))
+        
+        # 填充数据
+        for row, data in enumerate(results):
+            for col, key in enumerate(columns):
+                value = data[key]
+                # 确保正确处理编码
+                if isinstance(value, bytes):
+                    try:
+                        value = value.decode('utf-8')
+                    except UnicodeDecodeError:
+                        try:
+                            value = value.decode('gbk')
+                        except UnicodeDecodeError:
+                            value = str(value)
+                elif value is None:
+                    value = ''
+                else:
+                    value = str(value)
+                    
+                item = QTableWidgetItem(value)
+                table.setItem(row, col, item)
+        
+        # 调整列宽
+        table.resizeColumnsToContents()
+
+    def _close_result_tab(self, index: int):
+        """关闭结果标签页"""
+        self.result_tabs.removeTab(index)
+
+    def _clear_query(self):
+        """清除查询"""
+        self.query_edit.clear()
+        self.result_tabs.clear()
+        self.status_bar.clear()
 
     def _update_progress(self, current, total):
         """更新进度条"""
         self.progress_bar.setMaximum(total)
         self.progress_bar.setValue(current)
         self.status_bar.setText(f"正在执行查询... ({current}/{total})")
-        self.status_bar.setStyleSheet("color: blue; padding: 5px;")
-
-    def _clear_query(self):
-        """清除查询"""
-        self.query_edit.clear()
-        self.result_table.clear()
-        self.result_table.setRowCount(0)
-        self.result_table.setColumnCount(0)
-        self.status_bar.clear()
-
-    def _display_results(self, results):
-        """显示查询结果"""
-        if not results:
-            return
-            
-        # 设置表格列
-        columns = list(results[0].keys())
-        self.result_table.setColumnCount(len(columns))
-        self.result_table.setHorizontalHeaderLabels(columns)
-        
-        # 添加数据行
-        for row_data in results:
-            row = self.result_table.rowCount()
-            self.result_table.insertRow(row)
-            for col, value in enumerate(row_data.values()):
-                item = QTableWidgetItem(str(value))
-                self.result_table.setItem(row, col, item)
-        
-        # 调整列宽
-        self.result_table.resizeColumnsToContents() 
+        self.status_bar.setStyleSheet("color: blue; padding: 5px;") 

@@ -19,6 +19,18 @@ class DbType:
 
 # 支持的数据库类型定义
 DB_TYPES: Dict[str, DbType] = {
+    "mssql": DbType(
+        id="mssql",
+        name="SQL Server",
+        parameters=[
+            DbParameter("host", "主机地址", "text", True, "localhost", "例如：localhost或127.0.0.1"),
+            DbParameter("port", "端口", "number", False, "1433", "SQL Server默认端口：1433"),
+            DbParameter("database", "数据库名", "text", True, "", "要连接的数据库名"),
+            DbParameter("user", "用户名", "text", True, "", "数据库用户名"),
+            DbParameter("password", "密码", "password", True, "", "数据库密码")
+        ],
+        connection_string_template="mssql+pymssql://{user}:{password}@{host}:{port}/{database}"
+    ),
     "mysql": DbType(
         id="mysql",
         name="MySQL",
@@ -50,19 +62,6 @@ DB_TYPES: Dict[str, DbType] = {
             DbParameter("database", "数据库文件路径", "file", True, "", "选择或输入SQLite数据库文件路径"),
         ],
         connection_string_template="sqlite:///{database}"
-    ),
-    "mssql": DbType(
-        id="mssql",
-        name="SQL Server",
-        parameters=[
-            DbParameter("host", "主机地址", "text", True, "localhost", "例如：localhost或127.0.0.1"),
-            DbParameter("port", "端口", "number", False, "1433", "SQL Server默认端口：1433"),
-            DbParameter("database", "数据库名", "text", True, "", "要连接的数据库名"),
-            DbParameter("user", "用户名", "text", True, "", "数据库用户名"),
-            DbParameter("password", "密码", "password", True, "", "数据库密码"),
-            DbParameter("driver", "驱动", "text", False, "ODBC Driver 17 for SQL Server", "ODBC驱动名称"),
-        ],
-        connection_string_template="mssql+pyodbc://{user}:{password}@{host}:{port}/{database}?driver={driver}"
     ),
 }
 

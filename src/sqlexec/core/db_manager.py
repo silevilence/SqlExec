@@ -94,15 +94,76 @@ class DatabaseManager:
             if alias not in self.engines:
                 return False, None, "连接不存在"
             
-            with self.engines[alias].connect() as conn:
-                result = conn.execute(text(query))
-                if result.returns_rows:
-                    rows = [dict(row) for row in result]
-                    return True, rows, ""
-                return True, None, ""
+            max_retries = 3  # 最大重试次数
+            retry_count = 0
+            
+            while retry_count < max_retries:
+                try:
+                    with self.engines[alias].begin() as conn:  # 使用事务
+                        self.logger.info(f"执行查询: {query}")
+                        result = conn.execute(text(query))
+                        
+                        if result.returns_rows:
+                            # 使用_mapping属性获取字典，并确保字符串编码正确
+                            rows = []
+                            for row in result:
+                                data = {}
+                                # 检查是否有列名
+                                if hasattr(row, '_mapping'):
+                                    items = row._mapping.items()
+                                else:
+                                    # 如果没有列名，使用列号作为键
+                                    items = enumerate(row)
+                                    
+                                for key, value in items:
+                                    # 如果键是数字（没有列名的情况），使用 "Column_N" 作为键名
+                                    if isinstance(key, int):
+                                        key = f"Column_{key}"
+                                    
+                                    # 记录每个字段的值和类型
+                                    self.logger.debug(f"字段 {key}: 值 = {value}, 类型 = {type(value)}")
+                                    
+                                    if isinstance(value, bytes):
+                                        try:
+                                            value = value.decode('cp936')  # 使用 cp936 (GBK) 解码
+                                            self.logger.debug(f"字段 {key} 已从 bytes 解码为 cp936: {value}")
+                                        except UnicodeDecodeError as e:
+                                            self.logger.warning(f"字段 {key} cp936 解码失败: {e}")
+                                            try:
+                                                value = value.decode('utf8')
+                                                self.logger.debug(f"字段 {key} 已从 bytes 解码为 utf8: {value}")
+                                            except UnicodeDecodeError as e:
+                                                self.logger.error(f"字段 {key} utf8 解码也失败: {e}")
+                                                value = str(value)
+                                    data[key] = value
+                                rows.append(data)
+                                
+                            self.logger.info(f"查询返回 {len(rows)} 行数据")
+                            return True, rows, ""
+                        
+                        # 对于非查询语句，返回操作类型和影响的行数
+                        query_type = query.strip().split(None, 1)[0].upper()
+                        if query_type in ('CREATE', 'DROP', 'ALTER', 'TRUNCATE'):
+                            self.logger.info(f"执行 {query_type} 操作成功")
+                            return True, [{"operation": query_type, "status": "SUCCESS"}], ""
+                        else:
+                            affected = result.rowcount
+                            self.logger.info(f"执行 {query_type} 操作成功，影响 {affected} 行")
+                            return True, [{"operation": query_type, "affected_rows": affected}], ""
+                            
+                except Exception as e:
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        self.logger.warning(f"执行查询失败，正在尝试第{retry_count}次重连: {str(e)}")
+                        # 重新创建引擎
+                        if alias in self.connections:
+                            self.engines[alias] = self._create_engine(self.connections[alias])
+                    else:
+                        raise e
+                        
         except Exception as e:
             self.logger.error(f"执行查询失败: {str(e)}")
-            return False, None, str(e)
+            return False, None, f"执行失败: {str(e)}"
 
     def _create_engine(self, config: Dict) -> Any:
         """
@@ -117,23 +178,41 @@ class DatabaseManager:
         try:
             db_type = config["type"].lower()
             conn_str = config["connection_string"]
+            engine_kwargs = {
+                "pool_pre_ping": True,  # 自动检测断开的连接
+                "pool_recycle": 3600,   # 每小时回收连接
+                "echo": False           # 关闭SQL日志
+            }
             
-            # 根据数据库类型添加适当的驱动
-            if db_type == "mysql":
+            # 根据数据库类型添加适当的驱动和编码设置
+            if db_type == "mssql":
+                if not conn_str.startswith("mssql"):
+                    conn_str = f"mssql+pymssql://{conn_str}"
+                # SQL Server 的特殊编码设置
+                engine_kwargs["connect_args"] = {
+                    "charset": "cp936",  # 使用 cp936 (GBK) 编码，这是 pymssql 推荐的中文编码
+                    "autocommit": False
+                }
+                self.logger.info(f"创建 SQL Server 连接，连接字符串: {conn_str}, 参数: {engine_kwargs}")
+            elif db_type == "mysql":
                 if not conn_str.startswith("mysql"):
-                    conn_str = f"mysql+mysqldb://{conn_str}"
+                    conn_str = f"mysql+pymysql://{conn_str}"
+                if "?" in conn_str:
+                    conn_str += "&charset=utf8mb4"
+                else:
+                    conn_str += "?charset=utf8mb4"
+                engine_kwargs["encoding"] = "utf8mb4"
+                engine_kwargs["connect_args"] = {"charset": "utf8mb4"}
             elif db_type == "postgresql":
                 if not conn_str.startswith("postgresql"):
                     conn_str = f"postgresql+psycopg2://{conn_str}"
-            elif db_type == "mssql":
-                if not conn_str.startswith("mssql"):
-                    conn_str = f"mssql+pymssql://{conn_str}"
+                if "?" in conn_str:
+                    conn_str += "&client_encoding=utf8"
+                else:
+                    conn_str += "?client_encoding=utf8"
+                engine_kwargs["encoding"] = "utf8"
             
-            return create_engine(
-                conn_str,
-                pool_pre_ping=True,  # 自动检测断开的连接
-                pool_recycle=3600    # 每小时回收连接
-            )
+            return create_engine(conn_str, **engine_kwargs)
         except Exception as e:
             self.logger.error(f"创建数据库引擎失败: {str(e)}")
             return None

@@ -3,17 +3,14 @@ import logging
 from PySide6.QtWidgets import QApplication
 from sqlexec.ui.main_window import MainWindow
 from sqlexec.config.config_manager import ConfigManager
-
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-logger = logging.getLogger(__name__)
+from sqlexec.utils.logger import setup_logger
 
 def main():
     """应用程序入口"""
+    # 初始化日志系统
+    setup_logger()
+    
+    logger = logging.getLogger(__name__)
     logger.info("Starting SQL Exec application...")
     
     app = QApplication(sys.argv)
