@@ -5,9 +5,11 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QThread, Signal, QRegularExpression
 from PySide6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
 from sqlexec.core.db_manager import DatabaseManager
-from sqlexec.ui.main_window import MainWindow
+
+if TYPE_CHECKING:
+    from sqlexec.ui.main_window import MainWindow
 
 
 class SQLSyntaxHighlighter(QSyntaxHighlighter):
@@ -156,9 +158,9 @@ class QueryExecutor(QThread):
 
 
 class QueryEditor(QWidget):
-    def __init__(self, parent: Optional[MainWindow] = None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.main_window = parent
+        self.main_window = parent  # 类型: MainWindow
         self._init_ui()
 
     def _init_ui(self):

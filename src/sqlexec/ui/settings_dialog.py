@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (
     QDialog, QTabWidget, QWidget, QVBoxLayout, QFormLayout,
     QLineEdit, QComboBox, QSpinBox, QCheckBox, QPushButton,
     QDialogButtonBox, QMessageBox, QTableWidget, QTableWidgetItem,
-    QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QSplitter
+    QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QSplitter, QHeaderView
 )
 from PySide6.QtCore import Qt
 
@@ -112,6 +112,12 @@ class SettingsDialog(QDialog):
         self.db_table.setHorizontalHeaderLabels([
             "名称", "别名", "类型", "连接字符串"
         ])
+        
+        # 设置表格列宽自动调整
+        self.db_table.horizontalHeader().setStretchLastSection(True)  # 最后一列自动填充
+        self.db_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.db_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.db_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
 
         # 加载现有连接
         connections = list(self.settings.connections.values())
@@ -123,7 +129,6 @@ class SettingsDialog(QDialog):
             self.db_table.setItem(
                 i, 3, QTableWidgetItem(conn.connection_string))
 
-        self.db_table.resizeColumnsToContents()
         layout.addWidget(self.db_table)
 
         # 按钮栏
@@ -160,6 +165,10 @@ class SettingsDialog(QDialog):
         self.group_table.setColumnCount(2)
         self.group_table.setHorizontalHeaderLabels(["名称", "描述"])
         self.group_table.currentItemChanged.connect(self._on_group_selected)
+        
+        # 设置表格列宽自动调整
+        self.group_table.horizontalHeader().setStretchLastSection(True)  # 描述列自动填充
+        self.group_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
 
         # 加载现有组
         self.group_table.setRowCount(len(self.settings.groups))
@@ -167,7 +176,6 @@ class SettingsDialog(QDialog):
             self.group_table.setItem(i, 0, QTableWidgetItem(name))
             self.group_table.setItem(i, 1, QTableWidgetItem(info.description))
 
-        self.group_table.resizeColumnsToContents()
         left_layout.addWidget(self.group_table)
 
         # 组管理按钮
@@ -188,25 +196,13 @@ class SettingsDialog(QDialog):
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
 
-        # 连接列表
-        right_layout.addWidget(QLabel("组内连接:"))
+        # 连接列表标签
+        right_layout.addWidget(QLabel("选择要添加到组的连接:"))
+        
+        # 使用勾选框列表替代原来的连接列表
         self.connections_list = QListWidget()
+        self.connections_list.itemChanged.connect(self._on_connection_checked)
         right_layout.addWidget(self.connections_list)
-
-        # 连接管理按钮
-        conn_button_layout = QHBoxLayout()
-
-        add_to_group_btn = QPushButton("添加连接到组")
-        add_to_group_btn.clicked.connect(self._add_connection_to_group)
-        conn_button_layout.addWidget(add_to_group_btn)
-
-        remove_from_group_btn = QPushButton("从组中移除连接")
-        remove_from_group_btn.clicked.connect(
-            self._remove_connection_from_group)
-        conn_button_layout.addWidget(remove_from_group_btn)
-
-        conn_button_layout.addStretch()
-        right_layout.addLayout(conn_button_layout)
 
         # 添加分割器
         splitter = QSplitter(Qt.Horizontal)
@@ -227,65 +223,32 @@ class SettingsDialog(QDialog):
             return
 
         group = self.settings.groups[group_name]
-        for conn_alias in group.connections:
-            if conn_alias in self.settings.connections:
-                conn = self.settings.connections[conn_alias]
-                item = QListWidgetItem(f"{conn.name} ({conn.alias})")
-                item.setData(Qt.UserRole, conn.alias)
-                self.connections_list.addItem(item)
+        
+        # 显示所有连接，并根据是否在组中设置勾选状态
+        for conn in self.settings.connections.values():
+            item = QListWidgetItem(f"{conn.name} ({conn.alias})")
+            item.setData(Qt.UserRole, conn.alias)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if conn.alias in group.connections else Qt.Unchecked)
+            self.connections_list.addItem(item)
 
-    def _add_connection_to_group(self):
-        """添加连接到当前选中的组"""
+    def _on_connection_checked(self, item):
+        """当连接的勾选状态改变时更新组"""
         current_row = self.group_table.currentRow()
         if current_row < 0:
-            QMessageBox.warning(self, "错误", "请先选择一个组")
             return
 
         group_name = self.group_table.item(current_row, 0).text()
-
-        # 创建连接选择对话框
-        dialog = QDialog(self)
-        dialog.setWindowTitle("选择连接")
-        layout = QVBoxLayout(dialog)
-
-        conn_list = QListWidget()
-        for conn in self.settings.connections.values():
-            if conn.alias not in self.settings.groups[group_name].connections:
-                item = QListWidgetItem(f"{conn.name} ({conn.alias})")
-                item.setData(Qt.UserRole, conn.alias)
-                conn_list.addItem(item)
-
-        layout.addWidget(conn_list)
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
-        )
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
-
-        if dialog.exec():
-            current_item = conn_list.currentItem()
-            if current_item:
-                conn_alias = current_item.data(Qt.UserRole)
-                self.settings.add_connection_to_group(group_name, conn_alias)
-                self._on_group_selected(self.group_table.currentItem(), None)
-
-    def _remove_connection_from_group(self):
-        """从当前组中移除选中的连接"""
-        current_group_row = self.group_table.currentRow()
-        if current_group_row < 0:
+        if group_name not in self.settings.groups:
             return
 
-        current_conn_item = self.connections_list.currentItem()
-        if not current_conn_item:
-            return
-
-        group_name = self.group_table.item(current_group_row, 0).text()
-        conn_alias = current_conn_item.data(Qt.UserRole)
-
-        self.settings.remove_connection_from_group(group_name, conn_alias)
-        self._on_group_selected(self.group_table.currentItem(), None)
+        conn_alias = item.data(Qt.UserRole)
+        
+        # 根据勾选状态添加或移除连接
+        if item.checkState() == Qt.Checked:
+            self.settings.add_connection_to_group(group_name, conn_alias)
+        else:
+            self.settings.remove_connection_from_group(group_name, conn_alias)
 
     def _add_connection(self):
         """添加数据库连接"""
@@ -352,10 +315,24 @@ class SettingsDialog(QDialog):
 
     def _add_group(self):
         """添加组"""
+        # 创建新行
         row = self.group_table.rowCount()
         self.group_table.insertRow(row)
-        for i in range(2):
-            self.group_table.setItem(row, i, QTableWidgetItem(""))
+        
+        # 设置默认值
+        name = f"新建组{row + 1}"
+        description = "新建组"
+        
+        # 更新表格
+        self.group_table.setItem(row, 0, QTableWidgetItem(name))
+        self.group_table.setItem(row, 1, QTableWidgetItem(description))
+        
+        # 立即更新settings对象
+        self.settings.groups[name] = GroupInfo(
+            name=name,
+            description=description,
+            connections=set()
+        )
 
     def _remove_group(self):
         """删除组"""

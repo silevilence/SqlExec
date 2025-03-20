@@ -23,6 +23,151 @@ class MainWindow(QMainWindow):
         self.settings = self.config_manager.settings
         self.db_manager = DatabaseManager()
 
+        # 定义主题样式表
+        self.light_theme = """
+            QMainWindow, QWidget {
+                background-color: #f5f6f7;
+                color: #2c3e50;
+            }
+            QMenuBar {
+                background-color: #e8eaed;
+                border-bottom: 1px solid #d4d8dd;
+            }
+            QMenuBar::item:selected {
+                background-color: #dde1e6;
+            }
+            QMenu {
+                background-color: #f5f6f7;
+                border: 1px solid #d4d8dd;
+            }
+            QMenu::item:selected {
+                background-color: #dde1e6;
+            }
+            QTreeWidget {
+                background-color: #ffffff;
+                border: 1px solid #d4d8dd;
+            }
+            QTreeWidget::item:selected {
+                background-color: #dde1e6;
+                color: #2c3e50;
+            }
+            QTextEdit, QLineEdit {
+                background-color: #ffffff;
+                border: 1px solid #d4d8dd;
+                color: #2c3e50;
+                selection-background-color: #dde1e6;
+            }
+            QPushButton {
+                background-color: #e8eaed;
+                border: 1px solid #d4d8dd;
+                padding: 5px;
+                border-radius: 3px;
+                color: #2c3e50;
+            }
+            QPushButton:hover {
+                background-color: #dde1e6;
+            }
+            QTableWidget {
+                background-color: #ffffff;
+                alternate-background-color: #f8f9fa;
+                border: 1px solid #d4d8dd;
+                gridline-color: #e8eaed;
+                color: #2c3e50;
+            }
+            QHeaderView::section {
+                background-color: #e8eaed;
+                border: 1px solid #d4d8dd;
+                color: #2c3e50;
+                padding: 4px;
+            }
+            QScrollBar {
+                background-color: #f5f6f7;
+                width: 12px;
+                height: 12px;
+            }
+            QScrollBar::handle {
+                background-color: #d4d8dd;
+                border-radius: 6px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:hover {
+                background-color: #c1c7cd;
+            }
+            QScrollBar::add-line, QScrollBar::sub-line {
+                background: none;
+            }
+            QSplitter::handle {
+                background-color: #d4d8dd;
+            }
+            QTabWidget::pane {
+                border: 1px solid #d4d8dd;
+            }
+            QTabBar::tab {
+                background-color: #e8eaed;
+                border: 1px solid #d4d8dd;
+                padding: 5px 10px;
+                color: #2c3e50;
+            }
+            QTabBar::tab:selected {
+                background-color: #f5f6f7;
+                border-bottom-color: #f5f6f7;
+            }
+        """
+
+        self.dark_theme = """
+            QMainWindow, QWidget {
+                background-color: #2d2d2d;
+                color: #ffffff;
+            }
+            QMenuBar {
+                background-color: #3d3d3d;
+                border-bottom: 1px solid #505050;
+            }
+            QMenuBar::item:selected {
+                background-color: #505050;
+            }
+            QMenu {
+                background-color: #2d2d2d;
+                border: 1px solid #505050;
+            }
+            QMenu::item:selected {
+                background-color: #505050;
+            }
+            QTreeWidget {
+                background-color: #2d2d2d;
+                border: 1px solid #505050;
+            }
+            QTreeWidget::item:selected {
+                background-color: #505050;
+            }
+            QTextEdit, QLineEdit {
+                background-color: #3d3d3d;
+                border: 1px solid #505050;
+                color: #ffffff;
+            }
+            QPushButton {
+                background-color: #3d3d3d;
+                border: 1px solid #505050;
+                padding: 5px;
+                border-radius: 3px;
+                color: #ffffff;
+            }
+            QPushButton:hover {
+                background-color: #505050;
+            }
+            QTableWidget {
+                background-color: #2d2d2d;
+                alternate-background-color: #3d3d3d;
+                border: 1px solid #505050;
+                color: #ffffff;
+            }
+            QHeaderView::section {
+                background-color: #3d3d3d;
+                border: 1px solid #505050;
+                color: #ffffff;
+            }
+        """
+
         self._init_ui()
         self._setup_menu()
         self._setup_tray()
@@ -89,12 +234,18 @@ class MainWindow(QMainWindow):
 
         self.tray_icon = QSystemTrayIcon(self)
 
-        # 使用SVG图标
-        icon_path = str(Path(__file__).parent.parent /
-                        "resources" / "icons" / "app.svg")
+        # 获取图标路径
+        if getattr(sys, 'frozen', False):
+            # 如果是打包后的程序
+            base_path = sys._MEIPASS
+            icon_path = str(Path(base_path) / "sqlexec" / "resources" / "icons" / "app.svg")
+        else:
+            # 如果是开发环境
+            icon_path = str(Path(__file__).parent.parent / "resources" / "icons" / "app.svg")
+
         icon = QIcon(icon_path)
         if icon.isNull():
-            # 如果SVG加载失败，创建一个简单的图标
+            # 如果图标加载失败，创建一个简单的图标
             pixmap = QPixmap(32, 32)
             pixmap.fill(QColor("#4a90e2"))
             icon = QIcon(pixmap)
@@ -136,11 +287,9 @@ class MainWindow(QMainWindow):
         """应用设置到界面"""
         # 应用主题
         if self.settings.general.theme == Theme.DARK:
-            # TODO: 应用深色主题
-            pass
+            self.setStyleSheet(self.dark_theme)
         else:
-            # TODO: 应用浅色主题
-            pass
+            self.setStyleSheet(self.light_theme)
 
         # 应用系统托盘设置
         if hasattr(self, "tray_icon"):
